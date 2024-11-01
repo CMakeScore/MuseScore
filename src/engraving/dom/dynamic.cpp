@@ -425,12 +425,18 @@ void Dynamic::manageBarlineCollisions()
 void Dynamic::setDynamicType(const String& tag)
 {
     std::string utf8Tag = tag.toStdString();
-    size_t n = DYN_LIST.size();
-    for (size_t i = 0; i < n; ++i) {
-        if (TConv::toXml(DynamicType(i)).ascii() == utf8Tag || DYN_LIST[i].text == utf8Tag) {
-            setDynamicType(DynamicType(i));
-            setXmlText(String::fromUtf8(DYN_LIST[i].text));
-            return;
+    std::regex dynamicRegex(R"((?:<sym>.*?</sym>)+|(?:\b)[fmnprsz]+(?:\b(?=[^>]|$)))");
+    for (std::sregex_iterator it(utf8Tag.begin(), utf8Tag.end(), dynamicRegex), end; it != end; ++it) {
+        std::smatch match = *it;
+        std::string matchStr = match.str();
+        size_t n = DYN_LIST.size();
+        for (size_t i = 0; i < n; ++i) {
+            if (TConv::toXml(DynamicType(i)).ascii() == matchStr || DYN_LIST[i].text == matchStr) {
+                setDynamicType(DynamicType(i));
+                utf8Tag.replace(match.position(0), match.length(0), DYN_LIST[i].text);
+                setXmlText(String::fromStdString(utf8Tag));
+                return;
+            }
         }
     }
     LOGD("setDynamicType: other <%s>", muPrintable(tag));
@@ -956,5 +962,11 @@ String Dynamic::screenReaderInfo() const
         s = TConv::translatedUserName(dynamicType());
     }
     return String(u"%1: %2").arg(EngravingItem::accessibleInfo(), s);
+}
+
+void Dynamic::commitText()
+{
+    setDynamicType(xmlText());
+    TextBase::commitText();
 }
 }
